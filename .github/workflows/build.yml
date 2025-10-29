@@ -1,0 +1,31 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Pack CLI
+        uses: buildpacks/github-actions/setup-pack@v5.0.0
+      
+      - name: Package buildpack
+        run: |
+          pack buildpack package scoobed/mssql-kerberos:latest --config package.toml
+      
+      - name: Test buildpack (Python)
+        run: |
+          mkdir -p test-python
+          cd test-python
+          echo "pyodbc==4.0.39" > requirements.txt
+          echo "import pyodbc" > app.py
+          pack build test-python-app \
+            --buildpack ../paketo-mssql-kerberos \
+            --buildpack gcr.io/paketo-buildpacks/python \
+            --builder paketobuildpacks/builder-jammy-base

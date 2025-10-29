@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+# Check if application requires MSSQL ODBC driver
+# Look for common indicators like requirements.txt (pyodbc), package.json (mssql), or environment variable
+
+BUILD_PLAN="${2}"
+
+if [[ -f "requirements.txt" ]] && grep -q "pyodbc" "requirements.txt"; then
+    echo "MSSQL ODBC driver required (Python - pyodbc)"
+    cat >> "${BUILD_PLAN}" <<EOF
+[[requires]]
+name = "mssql-odbc"
+
+[[provides]]
+name = "mssql-odbc"
+EOF
+    exit 0
+fi
+
+if [[ -f "package.json" ]] && grep -q "mssql\|tedious" "package.json"; then
+    echo "MSSQL ODBC driver required (Node.js)"
+    cat >> "${BUILD_PLAN}" <<EOF
+[[requires]]
+name = "mssql-odbc"
+
+[[provides]]
+name = "mssql-odbc"
+EOF
+    exit 0
+fi
+
+if [[ -f "go.mod" ]] && grep -q "github.com/denisenkom/go-mssqldb" "go.mod"; then
+    echo "MSSQL ODBC driver required (Go)"
+    cat >> "${BUILD_PLAN}" <<EOF
+[[requires]]
+name = "mssql-odbc"
+
+[[provides]]
+name = "mssql-odbc"
+EOF
+    exit 0
+fi
+
+# Check for explicit opt-in via environment variable
+if [[ "${BP_ENABLE_MSSQL_ODBC}" == "true" ]]; then
+    echo "MSSQL ODBC driver explicitly enabled"
+    cat >> "${BUILD_PLAN}" <<EOF
+[[requires]]
+name = "mssql-odbc"
+
+[[provides]]
+name = "mssql-odbc"
+EOF
+    exit 0
+fi
+
+# Not required
+exit 100

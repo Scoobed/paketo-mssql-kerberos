@@ -1,0 +1,7 @@
+*.cnb
+*.tgz
+.DS_Store
+test-*/
+examples/*/node_modules/
+examples/*/__pycache__/
+*.pyc

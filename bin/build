@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LAYERS_DIR="${1}"
+PLATFORM_DIR="${2}"
+PLAN_PATH="${3}"
+
+# Create layer for MSSQL ODBC driver
+MSSQL_LAYER="${LAYERS_DIR}/mssql-odbc"
+mkdir -p "${MSSQL_LAYER}"
+
+echo "-----> Installing Microsoft ODBC Driver for SQL Server"
+
+# Determine OS version
+if [[ -f "/etc/os-release" ]]; then
+    . /etc/os-release
+    OS_VERSION="${VERSION_ID}"
+    echo "Detected OS: ${NAME} ${VERSION_ID}"
+fi
+
+# Install system dependencies (these will be available during build)
+echo "-----> Installing system dependencies"
+apt-get update -qq
+apt-get install -y -qq --no-install-recommends \
+    curl \
+    gnupg2 \
+    apt-transport-https \
+    ca-certificates \
+    unixodbc \
+    unixodbc-dev \
+    krb5-user \
+    libkrb5-3 \
+    libgssapi-krb5-2 \
+    libsasl2-modules-gssapi-mit \
+    > /dev/null 2>&1
+
+# Add Microsoft repository
+echo "-----> Adding Microsoft repository"
+curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+
+if [[ "${OS_VERSION}" == "22.04" ]]; then
+    curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
+elif [[ "${OS_VERSION}" == "20.04" ]]; then
+    curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
+elif [[ "${OS_VERSION}" == "18.04" ]]; then
+    curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
+else
+    echo "Warning: Unsupported Ubuntu version ${OS_VERSION}, defaulting to 22.04"
+    curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
+fi
+
+# Install MSSQL ODBC Driver
+echo "-----> Installing MSSQL ODBC Driver 18"
+apt-get update -qq
+ACCEPT_EULA=Y apt-get install -y -qq --no-install-recommends \
+    msodbcsql18 \
+    mssql-tools18 \
+    > /dev/null 2>&1
+
+# Vendor the installed libraries and drivers into the layer
+echo "-----> Vendoring ODBC drivers and dependencies"
+mkdir -p "${MSSQL_LAYER}/lib"
+mkdir -p "${MSSQL_LAYER}/bin"
+mkdir -p "${MSSQL_LAYER}/etc"
+
+# Copy ODBC driver files
+cp -r /opt/microsoft/msodbcsql18 "${MSSQL_LAYER}/"
+if [[ -d "/opt/mssql-tools18" ]]; then
+    cp -r /opt/mssql-tools18 "${MSSQL_LAYER}/"
+fi
+
+# Copy Kerberos libraries
+for lib in libgssapi_krb5.so* libkrb5.so* libk5crypto.so* libcom_err.so* libkrb5support.so* libsasl2.so*; do
+    find /usr/lib -name "${lib}" -exec cp -P {} "${MSSQL_LAYER}/lib/" \; 2>/dev/null || true
+    find /lib -name "${lib}" -exec cp -P {} "${MSSQL_LAYER}/lib/" \; 2>/dev/null || true
+done
+
+# Copy unixODBC libraries
+for lib in libodbc.so* libodbcinst.so*; do
+    find /usr/lib -name "${lib}" -exec cp -P {} "${MSSQL_LAYER}/lib/" \; 2>/dev/null || true
+done
+
+# Copy Kerberos configuration directory
+if [[ -d "/etc/krb5.conf.d" ]]; then
+    cp -r /etc/krb5.conf.d "${MSSQL_LAYER}/etc/"
+fi
+
+# Create ODBC configuration
+cat > "${MSSQL_LAYER}/etc/odbcinst.ini" <<EOF
+[ODBC Driver 18 for SQL Server]
+Description=Microsoft ODBC Driver 18 for SQL Server
+Driver=${MSSQL_LAYER}/msodbcsql18/lib64/libmsodbcsql-18.so
+UsageCount=1
+
+[ODBC Driver 17 for SQL Server]
+Description=Microsoft ODBC Driver 17 for SQL Server (fallback)
+Driver=${MSSQL_LAYER}/msodbcsql18/lib64/libmsodbcsql-18.so
+UsageCount=1
+EOF
+
+# Set layer metadata for launch
+cat > "${MSSQL_LAYER}.toml" <<EOF
+[types]
+launch = true
+build = false
+cache = true
+
+[metadata]
+version = "18"
+EOF
+
+# Create profile.d script for runtime environment variables
+mkdir -p "${LAYERS_DIR}/mssql-odbc/profile.d"
+cat > "${LAYERS_DIR}/mssql-odbc/profile.d/mssql-odbc.sh" <<EOF
+#!/usr/bin/env bash
+
+# Add ODBC driver libraries to library path
+export LD_LIBRARY_PATH="${MSSQL_LAYER}/lib:${MSSQL_LAYER}/msodbcsql18/lib64:\${LD_LIBRARY_PATH:-}"
+
+# Set ODBC configuration paths
+export ODBCSYSINI="${MSSQL_LAYER}/etc"
+export ODBCINI="${MSSQL_LAYER}/etc/odbc.ini"
+
+# Add mssql-tools to PATH
+export PATH="${MSSQL_LAYER}/mssql-tools18/bin:\${PATH}"
+
+# Kerberos configuration
+export KRB5_CONFIG="\${KRB5_CONFIG:-/etc/krb5.conf}"
+
+# Set environment for ODBC driver
+export MSSQL_ODBC_DRIVER="ODBC Driver 18 for SQL Server"
+EOF
+
+chmod +x "${LAYERS_DIR}/mssql-odbc/profile.d/mssql-odbc.sh"
+
+# Set build environment (for build-time dependencies)
+cat > "${LAYERS_DIR}/mssql-odbc/build-env" <<EOF
+LD_LIBRARY_PATH.append=${MSSQL_LAYER}/lib:${MSSQL_LAYER}/msodbcsql18/lib64
+ODBCSYSINI.default=${MSSQL_LAYER}/etc
+PATH.append=${MSSQL_LAYER}/mssql-tools18/bin
+EOF
+
+# Clean up apt cache
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+echo "-----> MSSQL ODBC Driver with Kerberos support installed successfully"
+echo "       Driver: ODBC Driver 18 for SQL Server"
+echo "       Location: ${MSSQL_LAYER}/msodbcsql18"
+echo "       Kerberos support: Enabled"
