@@ -24,11 +24,12 @@ echo "✓ Buildpack packaged successfully"
 if [ "$1" == "--test" ]; then
     echo ""
     echo "Step 2: Testing with Python example..."
-    cd examples/python
+    # cd examples/python
+    cd ../samples/python/pipenv
     
     pack build mssql-test-app \
         --buildpack scoobed/mssql-kerberos:latest \
-        --buildpack gcr.io/paketo-buildpacks/python \
+        --buildpack paketobuildpacks/python:latest \
         --builder paketobuildpacks/builder-jammy-base \
         --env BP_ENABLE_MSSQL_ODBC=true
     

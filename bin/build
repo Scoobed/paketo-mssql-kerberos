@@ -5,18 +5,61 @@ LAYERS_DIR="${1}"
 PLATFORM_DIR="${2}"
 PLAN_PATH="${3}"
 
+# Parse buildpack.toml to get dependency URIs
+BUILDPACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILDPACK_TOML="${BUILDPACK_DIR}/buildpack.toml"
+
 # Create layer for MSSQL ODBC driver
 MSSQL_LAYER="${LAYERS_DIR}/mssql-odbc"
 mkdir -p "${MSSQL_LAYER}"
 
 echo "-----> Installing Microsoft ODBC Driver for SQL Server"
 
-# Determine OS version
+# Determine OS version and stack
 if [[ -f "/etc/os-release" ]]; then
     . /etc/os-release
     OS_VERSION="${VERSION_ID}"
     echo "Detected OS: ${NAME} ${VERSION_ID}"
+    
+    # Map OS version to stack ID
+    case "${OS_VERSION}" in
+        "22.04")
+            STACK_ID="io.buildpacks.stacks.jammy"
+            ;;
+        "20.04")
+            STACK_ID="io.buildpacks.stacks.focal"
+            ;;
+        "18.04")
+            STACK_ID="io.buildpacks.stacks.bionic"
+            ;;
+        *)
+            echo "Warning: Unsupported Ubuntu version ${OS_VERSION}, defaulting to 22.04"
+            OS_VERSION="22.04"
+            STACK_ID="io.buildpacks.stacks.jammy"
+            ;;
+    esac
 fi
+
+# Extract repository URL from buildpack.toml for this stack
+# Using a simple grep/awk approach to parse TOML
+REPO_URL=$(awk -v stack="${STACK_ID}" '
+    /^\[\[metadata\.dependencies\]\]/ { in_dep=1; stack_match=0; next }
+    in_dep && /id = "mssql-odbc"/ { is_odbc=1; next }
+    in_dep && is_odbc && /stacks = \[.*'"${STACK_ID}"'.*\]/ { stack_match=1; next }
+    in_dep && is_odbc && stack_match && /uri = / {
+        match($0, /uri = "([^"]+)"/, arr)
+        print arr[1]
+        exit
+    }
+    /^\[\[metadata\.dependencies\]\]/ { in_dep=1; is_odbc=0; stack_match=0 }
+' "${BUILDPACK_TOML}")
+
+if [[ -z "${REPO_URL}" ]]; then
+    echo "Warning: Could not find repository URL in buildpack.toml, using default"
+    REPO_URL="https://packages.microsoft.com/config/ubuntu/${OS_VERSION}/prod.list"
+fi
+
+echo "Using repository: ${REPO_URL}"
 
 # Install system dependencies (these will be available during build)
 echo "-----> Installing system dependencies"
@@ -37,17 +80,7 @@ apt-get install -y -qq --no-install-recommends \
 # Add Microsoft repository
 echo "-----> Adding Microsoft repository"
 curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-
-if [[ "${OS_VERSION}" == "22.04" ]]; then
-    curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
-elif [[ "${OS_VERSION}" == "20.04" ]]; then
-    curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
-elif [[ "${OS_VERSION}" == "18.04" ]]; then
-    curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
-else
-    echo "Warning: Unsupported Ubuntu version ${OS_VERSION}, defaulting to 22.04"
-    curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
-fi
+curl "${REPO_URL}" > /etc/apt/sources.list.d/mssql-release.list
 
 # Install MSSQL ODBC Driver
 echo "-----> Installing MSSQL ODBC Driver 18"

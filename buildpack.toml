@@ -18,3 +18,90 @@ api = "0.7"
 
 [metadata.default-versions]
   odbc = "18"
+
+# Ubuntu 22.04 (Jammy)
+[[metadata.dependencies]]
+  id = "mssql-odbc"
+  name = "Microsoft ODBC Driver for SQL Server"
+  version = "18"
+  uri = "https://packages.microsoft.com/config/ubuntu/22.04/prod.list"
+  sha256 = "" # Repository list file, checksum not applicable
+  stacks = ["io.buildpacks.stacks.jammy"]
+  source = "https://packages.microsoft.com/ubuntu/22.04/prod"
+  source-sha256 = ""
+
+  [[metadata.dependencies.licenses]]
+    type = "Proprietary"
+    uri = "https://www.microsoft.com/en-us/legal/terms-of-use"
+
+[[metadata.dependencies]]
+  id = "mssql-tools"
+  name = "Microsoft SQL Server Tools"
+  version = "18"
+  uri = "https://packages.microsoft.com/config/ubuntu/22.04/prod.list"
+  sha256 = ""
+  stacks = ["io.buildpacks.stacks.jammy"]
+  source = "https://packages.microsoft.com/ubuntu/22.04/prod"
+  source-sha256 = ""
+
+  [[metadata.dependencies.licenses]]
+    type = "Proprietary"
+    uri = "https://www.microsoft.com/en-us/legal/terms-of-use"
+
+# Ubuntu 20.04 (Focal)
+[[metadata.dependencies]]
+  id = "mssql-odbc"
+  name = "Microsoft ODBC Driver for SQL Server"
+  version = "18"
+  uri = "https://packages.microsoft.com/config/ubuntu/20.04/prod.list"
+  sha256 = ""
+  stacks = ["io.buildpacks.stacks.focal"]
+  source = "https://packages.microsoft.com/ubuntu/20.04/prod"
+  source-sha256 = ""
+
+  [[metadata.dependencies.licenses]]
+    type = "Proprietary"
+    uri = "https://www.microsoft.com/en-us/legal/terms-of-use"
+
+[[metadata.dependencies]]
+  id = "mssql-tools"
+  name = "Microsoft SQL Server Tools"
+  version = "18"
+  uri = "https://packages.microsoft.com/config/ubuntu/20.04/prod.list"
+  sha256 = ""
+  stacks = ["io.buildpacks.stacks.focal"]
+  source = "https://packages.microsoft.com/ubuntu/20.04/prod"
+  source-sha256 = ""
+
+  [[metadata.dependencies.licenses]]
+    type = "Proprietary"
+    uri = "https://www.microsoft.com/en-us/legal/terms-of-use"
+
+# Ubuntu 18.04 (Bionic)
+[[metadata.dependencies]]
+  id = "mssql-odbc"
+  name = "Microsoft ODBC Driver for SQL Server"
+  version = "18"
+  uri = "https://packages.microsoft.com/config/ubuntu/18.04/prod.list"
+  sha256 = ""
+  stacks = ["io.buildpacks.stacks.bionic"]
+  source = "https://packages.microsoft.com/ubuntu/18.04/prod"
+  source-sha256 = ""
+
+  [[metadata.dependencies.licenses]]
+    type = "Proprietary"
+    uri = "https://www.microsoft.com/en-us/legal/terms-of-use"
+
+[[metadata.dependencies]]
+  id = "mssql-tools"
+  name = "Microsoft SQL Server Tools"
+  version = "18"
+  uri = "https://packages.microsoft.com/config/ubuntu/18.04/prod.list"
+  sha256 = ""
+  stacks = ["io.buildpacks.stacks.bionic"]
+  source = "https://packages.microsoft.com/ubuntu/18.04/prod"
+  source-sha256 = ""
+
+  [[metadata.dependencies.licenses]]
+    type = "Proprietary"
+    uri = "https://www.microsoft.com/en-us/legal/terms-of-use"
